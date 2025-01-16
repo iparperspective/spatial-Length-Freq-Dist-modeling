@@ -5,9 +5,9 @@
 library(INLA)
 library(inlabru)
 library(tidyverse)
-source("C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/spde-book-functions.R")
+source("~/spde-book-functions.R")
 
-rho_size <- 0.9 # size cor
+rho_size <- 0.75 # size cor
 range = 50
 params <- c(variance = .5, kappa = 1)
 
@@ -157,13 +157,13 @@ ggplot(c_effect)+geom_line(aes(x=covar,y=CovarEffect,color=factor(size_num)),lin
   #ggtitle("Simulated covariate effects") + 
   xlab("Covariate") + ylab("Effect") +
   theme_bw() + guides(color = guide_legend(title="Size"))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/bathy_size_sims.png")
+ggsave(filename = "~/bathy_size_sims.png")
 ggplot(c_effect)+geom_point(aes(x=covar,y=CovarEffect))+facet_wrap(~Size)
 
 ggplot(c_effect)+geom_tile(aes(x=lon,y=lat,fill=covar)) +theme_bw()+
   xlab("Longitude")+ylab("Latitude")+ #ggtitle("Simulated covariate space")+
   viridis::scale_fill_viridis()+ guides(fill = guide_legend(title="Covariate"))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/covariate_space.png")
+ggsave(filename = "~/covariate_space.png")
 
 
 occur = as.data.frame(y_Occur) %>% 
@@ -270,7 +270,7 @@ cmp_both = Count ~ Intercept(1) +
         hyper = list(prec = list(prior = "pc.prec", param = c(4, 0.01))),
         group = size_num ,
         ngroup=n_size,
-        control.group = list(model="rw1")) +                   
+        control.group = list(model="ar1")) +                   
   # size(size_num, model = "rw2", scale.model=T,
   #       hyper = list(prec = list(prior = "pc.prec", param = c(4, 0.01)))) +
   size(Size, model = "factor_contrast") +
@@ -299,17 +299,12 @@ ggplot(fit_both$summary.random$size)+geom_point(aes(x=ID,y=mean))+
 summary(fit_both)
 
 fit_both$summary.hyperpar
-# Compute corrected stdev for theta[0]: negative 0.925  positive 0.983
-# Compute corrected stdev for theta[1]: negative 0.885  positive 1.064
-# Compute corrected stdev for theta[2]: negative 0.781  positive 1.190
-# Compute corrected stdev for theta[3]: negative 1.510  positive 2.130
-# Compute corrected stdev for theta[4]: negative 0.948  positive 0.979
-# Compute corrected stdev for theta[5]: negative 1.430  positive 1.926
 
-save(fit_both,file = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/fit_both.Rdata")
-save(SimData,file = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/SimData.Rdata")
-save(survey_sf,file = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/survey_sf.Rdata")
-save(mesh,file = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/mesh.Rdata")
+
+save(fit_both,file = "~/fit_both.Rdata")
+save(SimData,file = "~/SimData.Rdata")
+save(survey_sf,file = "~/survey_sf.Rdata")
+save(mesh,file = "~/mesh.Rdata")
 
 
 #####################
@@ -331,41 +326,17 @@ df_depth = data.frame(depth = fit_both$summary.random$covar$ID,
                       estimate =fit_both$summary.random$covar$mean,
                       size = rep(sort(unique(survey_sf$size_num)),each=length(covar_seq)))
 
-library(mgcv)
-sm <- gam(estimate~te(depth,size,k=c(4,4)),data=df_depth) 
-plot(sm)
-
-df_depth$FitGam = fitted(sm)
-
-df_depth$mean_obs
-
-survey_covar_sum = survey_sf %>% group_by(Size,covar) %>% summarise(obs_mean=mean(Count))
-
-
-#ggplot(df_depth) + geom_tile(aes(x=depth,y=size,fill=estimate)) + viridis::scale_fill_viridis()
 ggplot(df_depth) + geom_line(aes(x=depth,y=estimate,color=factor(size)),linewidth=1) + 
   #ggtitle("Estimated covariate effect") + 
   xlab("Covariate") + ylab("Estimate") +
   theme_bw() + guides(color = guide_legend(title="Size"))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/bathy_size_estimate.png")
+ggsave(filename = "~/bathy_size_estimate.png")
 
-
-# # scatter3d(x = df_depth$depth, y = df_depth$size, z = df_depth$mean_obs,
-#           point.col = "blue", surface=FALSE,main= "Data")
-# 
-# scatter3d(x = df_depth$depth, y = df_depth$size, z = df_depth$estimate,
-#           point.col = "blue", surface=FALSE)
-# 
-# scatter3d(x = df_depth$depth, y = df_depth$size, z = df_depth$FitGam,
-#           point.col = "blue", surface=FALSE)
 
 #################
 ### Predict ####
 ###############
 SimData_sf = sf::st_as_sf(SimData, coords = c("lon","lat"))
-
-nrow(SimData_sf)
-
 ea = SimData_sf %>% filter(idx%in%sample(unique(SimData_sf$idx),2000))
 
 predictions <- predict(fit_both, newdata = ea,
@@ -375,16 +346,11 @@ predictions <- predict(fit_both, newdata = ea,
 
 predictions$lon = st_coordinates(predictions)[,1]
 predictions$lat = st_coordinates(predictions)[,2]
-
-#ggplot(predictions)+geom_point(aes(x=median,y=Count))+facet_wrap(~size_num) +ggtitle("Predicted vs Observed")+geom_abline(intercept = 0, slope = 1)
-
 ggplot(predictions)+geom_point(aes(x=median,y=Mean.Abundance))+
   geom_abline(intercept = 0, slope = 1)+facet_wrap(~size_num) +
   ggtitle("Predicted vs Simulated mean abundances") + xlab("Predicted") + ylab("Simulated")
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/observed_vs_predicted.png")
+ggsave(filename = "~/observed_vs_predicted.png")
 
-
-plot(predictions$Count,predictions$median)
 
 ################################
 #### Size prediction #########
@@ -395,10 +361,7 @@ predictions %>% group_by(size_num) %>% summarise(Estimated = sum(median),
   ggplot()+geom_line(aes(x=size_num,y=Abundance,color=Origin),linewidth=1) +#ggtitle("Overall LFD") +
   theme_bw() + xlab("Size")+ylab("Overall abundance")+
   guides(color = guide_legend(title=NULL))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/Overall_LFD.png")
-
-# ggplot(predictions)+geom_boxplot(aes(x=factor(size_num),y=Mean.Abundance)) +ggtitle("Simulated values at size")
-# ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/size_simulated.png")
+ggsave(filename = "~/Overall_LFD.png")
 
 
 #################################
@@ -410,26 +373,26 @@ ggplot(predictions) +  # Replace 'X' and 'Y' with your column names
   geom_sf(aes(color=median),size=3) + facet_wrap(~size_num) +#ggtitle("Estimated spatial abundances per size class") +
   viridis::scale_color_viridis()+
   guides(color = guide_legend(title="Estimate"))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/estimated_maps.png")
+ggsave(filename = "~/estimated_maps.png")
 
 ee = as.data.frame(predictions)
 ggplot(ee) +  # Replace 'X' and 'Y' with your column names
   geom_point(aes(x=lon,y=lat,color=median),size=4) + facet_wrap(~size_num) +#ggtitle("Estimated spatial abundances per size class") +
   viridis::scale_color_viridis() + xlab("Longitude")+ ylab("Latitude")+
   guides(color = guide_legend(title="Median"))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/estimated_maps2.png")
+ggsave(filename = "~/estimated_maps2.png")
 
 ggplot(SimData) +  # Replace 'X' and 'Y' with your column names
   geom_point(aes(x=lon,y=lat,color=Count),size=3) + facet_wrap(~size_num) +#ggtitle("Simulated abundance maps per size class")+
   viridis::scale_color_viridis()+ xlab("Longitude")+ ylab("Latitude")+
   guides(color = guide_legend(title="Abundance"))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/simulated_maps.png")
+ggsave(filename = "~/simulated_maps.png")
 
 ee %>% mutate(Residual = Mean.Abundance-median) %>% ggplot +
   geom_point(aes(x=lon,y=lat,color=Residual),size=4) + facet_wrap(~size_num) +#ggtitle("Spatial residuals per size class")+
   viridis::scale_color_viridis()+ xlab("Longitude")+ ylab("Latitude")+
   guides(color = guide_legend(title="Residual"))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/residual_maps.png")
+ggsave(filename = "~/residual_maps.png")
 
 ##################################
 #### covar prediction ##########
@@ -438,14 +401,14 @@ predictions %>% group_by(covar,size_num) %>% summarise(Estimate = mean(median)) 
   ggplot()+geom_point(aes(x=covar,y=size_num,color=Estimate,size=Estimate))+theme_bw() +
   viridis::scale_color_viridis() +#ggtitle("Estimated mean abundance per Size at covariate") +
   theme_bw() + xlab("Covariate")+ ylab("Size")
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/size_covar_mean_map_prediction.png")
+ggsave(filename = "~/size_covar_mean_map_prediction.png")
 
 
 predictions %>% group_by(covar,size_num) %>% summarise(Simulated = mean(Mean.Abundance)) %>% 
   ggplot()+geom_point(aes(x=covar,y=size_num,color=Simulated,size=Simulated))+theme_bw()+
   viridis::scale_color_viridis()+#ggtitle("Simulated mean abundance per Size at covariate") +
   theme_bw() + xlab("Covariate")+ ylab("Size")
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/size_covar_mean_map_simulated.png")
+ggsave(filename = "~/size_covar_mean_map_simulated.png")
 
 
 
@@ -453,7 +416,7 @@ predictions %>% group_by(covar,size_num) %>% summarise(Residual = mean(Mean.Abun
   ggplot()+geom_point(aes(x=covar,y=size_num,color=Residual,size=Residual))+theme_bw()+
   viridis::scale_color_viridis()+#ggtitle("Mean residual per Size at covariate") +
   theme_bw() + xlab("Covariate")+ ylab("Size")
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/size_covar_mean_residual_map.png")
+ggsave(filename = "~/size_covar_mean_residual_map.png")
 
 
 
@@ -462,7 +425,7 @@ predictions %>% rename(Estimated = "mean",Simulated = "Mean.Abundance") %>% pivo
   facet_wrap(~size_num)+#ggtitle("Estimated abundance at covariate per size class") +
   theme_bw() + xlab("Covariate")+ ylab("Log(Abundance)") + 
   scale_x_continuous(breaks=seq(1, 31, 5))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/sim_vs_estim_BySize_map.png")
+ggsave(filename = "~/sim_vs_estim_BySize_map.png")
 
 
 predictions %>% rename(Estimated = "mean",Simulated = "Mean.Abundance") %>% 
@@ -472,7 +435,7 @@ mutate(group_covar = cut(covar,breaks=c(1,5,10,15,20,25,31),labels = c("1-5","6-
   facet_wrap(~group_covar)+#ggtitle("Estimated abundance at covariate per size class") +
   theme_bw() + xlab("Size")+ ylab("Log(Abundance)") + 
   scale_x_continuous(breaks=seq(1, 16, 2))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/sim_vs_estim_CovarGroup_map.png")
+ggsave(filename = "~/sim_vs_estim_CovarGroup_map.png")
 
 
 
@@ -480,13 +443,13 @@ predictions %>%   ggplot()+geom_boxplot(aes(x=covar,y=mean,group=covar))+
   facet_wrap(~size_num)+#ggtitle("Estimated abundance at covariate per size class") +
   theme_bw() + xlab("Covariate")+ ylab("Estimated abundance at covariate") + 
   scale_x_continuous(breaks=seq(1, 31, 5))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/size_covar_prediction.png")
+ggsave(filename = "~/size_covar_prediction.png")
 
 predictions %>%   ggplot()+geom_boxplot(aes(x=covar,y=Mean.Abundance,group=covar))+
   facet_wrap(~size_num)+#ggtitle("Simulated abundance at covariate") +
   theme_bw() + xlab("Covariate")+ ylab("Simulated abundance at covariate") + 
   scale_x_continuous(breaks=seq(1, 31, 5))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/size_covar_simulated.png")
+ggsave(filename = "~/size_covar_simulated.png")
 
 
 mean_estimate =predictions %>% group_by(covar,size_num) %>% summarise(mean = mean(mean)) 
@@ -495,7 +458,7 @@ predictions %>%   ggplot()+geom_boxplot(aes(x=covar,y=Count,group=covar))+
   facet_wrap(~size_num)+#ggtitle("Simulated abundance and estimated mean abundance at covariate per size class") +
   theme_bw() + xlab("Covariate")+ ylab("Abundance") + 
   scale_x_continuous(breaks=seq(1, 31, 5))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/size_covar_observedVsMeanFit.png")
+ggsave(filename = "~/size_covar_observedVsMeanFit.png")
 
 mean_estimate =predictions %>% group_by(covar,size_num) %>% summarise(mean = mean(mean)) 
 predictions %>%   ggplot()+geom_boxplot(aes(x=covar,y=log(Count),group=covar))+ 
@@ -503,7 +466,7 @@ predictions %>%   ggplot()+geom_boxplot(aes(x=covar,y=log(Count),group=covar))+
   facet_wrap(~size_num)+#ggtitle("Simulated abundance and estimated mean abundance at covariate per size class") +
   theme_bw() + xlab("Covariate")+ ylab("Abundance") + 
   scale_x_continuous(breaks=seq(1, 31, 5))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/size_covar_LOG_observedVsMeanFit.png")
+ggsave(filename = "~/size_covar_LOG_observedVsMeanFit.png")
 
 
 
@@ -511,7 +474,7 @@ predictions %>% mutate(Residual = Mean.Abundance-mean) %>%
   ggplot()+geom_boxplot(aes(x=covar,y=Residual,group=covar))+
   facet_wrap(~size_num)+ggtitle("Residuals at covariate per size class") +theme_bw() + xlab("Covariate")+ ylab("Residual") + 
   scale_x_continuous(breaks=seq(1, 31, 5))
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/size_covar_residuals.png")
+ggsave(filename = "~/size_covar_residuals.png")
 
 
 ########################
@@ -527,7 +490,7 @@ predictions %>%  mutate( Region = case_when(
   TRUE ~ NA
 ))   %>%  ggplot()  +  # Replace 'X' and 'Y' with your column names
   geom_sf(aes(color=Region)) + theme_bw() +scale_color_discrete(na.translate=F)
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/spat_regions.png")
+ggsave(filename = "~/spat_regions.png")
 
 
 predictions %>%  mutate( Region = case_when(
@@ -545,7 +508,7 @@ predictions %>%  mutate( Region = case_when(
   ggplot()+geom_line(aes(x=size_num,y=Abundance,color=Type),linewidth=1) + 
   facet_wrap(~Region) +theme_bw() + xlab("Size cm") + 
   theme_bw()
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/LFDs_region.png")
+ggsave(filename = "~/LFDs_region.png")
 
 
 ########################
@@ -555,7 +518,7 @@ muestra=sample(unique(predictions$idx),9)
 
 predictions %>% filter(idx%in%muestra) %>% ggplot+geom_sf_text(aes(label = idx), size = 3, color = "black") + theme_bw() +
   xlab("")+ylab("")+ggtitle("LFD at these points in space")
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/spat_points.png")
+ggsave(filename = "~/spat_points.png")
 
 
 predictions %>% filter(idx%in%muestra) %>%
@@ -564,12 +527,7 @@ predictions %>% filter(idx%in%muestra) %>%
   pivot_longer(cols = c(Estimated,Simulated),names_to = "Source",values_to = "Abundance") %>% 
   ggplot()+geom_line(aes(x=size_num,y=Abundance,color=Source),linewidth=1) + facet_wrap(~idx) +theme_bw() + xlab("Size cm") + 
   theme_bw()
-ggsave(filename = "C:/Users/ip30/OneDrive - University of St Andrews/Desktop/LFD simulation/LFDs_at_point.png")
+ggsave(filename = "~/LFDs_at_point.png")
 
 
-
-
-###################################
-#### space1 very correlated (ar1)
-#### space1 NOT correlated (iid)
 
